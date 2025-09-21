@@ -1,0 +1,106 @@
+########################################
+##### Download Igblast for macOS #######
+########################################
+curl -O https://ftp.ncbi.nlm.nih.gov/blast/executables/igblast/release/1.21.0/ncbi-igblast-1.21.0-x64-macosx.tar.gz
+tar -xzf ncbi-igblast-1.21.0-x64-macosx.tar.gz
+
+########################################
+###### Download Ig reference gene ######
+########################################
+mkdir references
+cd references
+## V genes
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGHV.fasta
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGKV.fasta
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGLV.fasta
+## D genes, only for the IGH
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGHD.fasta
+## J genes
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGHJ.fasta
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGKJ.fasta
+curl -O https://www.imgt.org/download/V-QUEST/IMGT_V-QUEST_reference_directory/Homo_sapiens/IG/IGLJ.fasta
+
+#combine the VDJ gene
+cat IG*V.fasta > imgt_ig_v_human.fasta
+cat IG*D.fasta > imgt_ig_d_human.fasta
+cat IG*J.fasta > imgt_ig_j_human.fasta
+
+# The fasta description lines (the lines that start with ‘>’) must be adjusted to the format needed for IgBLAST. 
+cd ../references
+../bin/edit_imgt_file.pl imgt_ig_v_human.fasta > imgt_ig_v_human.fa
+../bin/edit_imgt_file.pl imgt_ig_d_human.fasta > imgt_ig_d_human.fa
+../bin/edit_imgt_file.pl imgt_ig_j_human.fasta > imgt_ig_j_human.fa
+
+# The FASTA files need to be converted to BLAST databases for use with IgBLAST. 
+../bin/makeblastdb -parse_seqids -dbtype nucl -in imgt_ig_v_human.fa
+../bin/makeblastdb -parse_seqids -dbtype nucl -in imgt_ig_d_human.fa
+../bin/makeblastdb -parse_seqids -dbtype nucl -in imgt_ig_j_human.fa
+
+# remove the intermediate files and keep only the BLAST databases
+rm *.fa
+rm *.fasta
+
+# For the Ig we can obtain BLAST database formatted Human constant region gene sets from NCBI:
+curl -O https://ftp.ncbi.nih.gov/blast/executables/igblast/release/database/ncbi_human_c_genes.tar
+tar xvf ncbi_human_c_genes.tar
+rm ncbi_human_c_genes.tar
+
+# chech if Igblast is working
+cd ../ncbi-igblast-1.21.0
+export PATH=$PATH:$(pwd)/bin
+export IGDATA=$(pwd)
+igblastn -version
+igblastn -help | head -10
+
+###############################
+###### Sanger data format #####
+###############################
+
+# python script
+cat > convert_to_fasta.py
+
+#!/usr/bin/env python3
+import os 
+import glob
+
+# input and output path
+input_dir = ".../BCR_sanger"  
+output_file = "all_sequences.fasta"
+
+# get *.seq
+seq_files = glob.glob(os.path.join(input_dir, "*.seq"))
+
+with open(output_file, 'w') as out_f:
+    for seq_file in seq_files:
+        # Obtain the well position from the file name (e.g., A01, B02, etc.)
+        well_id = os.path.basename(seq_file).split('.')[0]
+        
+        # Read the sequence content
+        with open(seq_file, 'r') as in_f:
+            sequence = in_f.read().strip()
+        
+        # Write in FASTA format
+        out_f.write(f">{well_id}\n{sequence}\n")
+
+print(f"Conversion completed, A total of {len(seq_files)} sequences have been processed")
+
+# Run python
+python convert_to_fasta.py
+
+#######################
+#### Run IgBLAST ######
+#######################
+#IgBLAST requires the IGDATA environmental variable to be set
+export IGDATA=../ncbi-igblast-1.21.0
+
+##running IgBLAST against the Ig references
+~/Igblast/ncbi-igblast-1.21.0/bin/igblastn \
+    -germline_db_V ~/Igblast/ncbi-igblast-1.21.0/references/imgt_ig_v_human.fa \
+    -germline_db_D ~/Igblast/ncbi-igblast-1.21.0/references/imgt_ig_d_human.fa \
+    -germline_db_J ~/Igblast/ncbi-igblast-1.21.0/references/imgt_ig_j_human.fa \
+    -c_region_db ~/Igblast/ncbi-igblast-1.21.0/references/ncbi_human_c_genes \
+    -auxiliary_data ~/Igblast/ncbi-igblast-1.21.0/optional_file/human_gl.aux \
+    -domain_system imgt -ig_seqtype Ig -organism human \
+    -outfmt 19 \
+    -query all_sequences.fasta \
+    -out igblast_results.tsv
