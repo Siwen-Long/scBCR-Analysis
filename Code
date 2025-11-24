@@ -44,9 +44,7 @@ rm ncbi_human_c_genes.tar
 ###############################
 ###### Sanger data format #####
 ###############################
-
-# python script
-cat > convert_to_fasta.py
+# python script "convert_to_fasta.py"
 
 #!/usr/bin/env python3
 import os 
