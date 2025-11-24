@@ -36,21 +36,10 @@ cd ../references
 ../bin/makeblastdb -parse_seqids -dbtype nucl -in imgt_ig_d_human.fa
 ../bin/makeblastdb -parse_seqids -dbtype nucl -in imgt_ig_j_human.fa
 
-# remove the intermediate files and keep only the BLAST databases
-rm *.fa
-rm *.fasta
-
 # For the Ig we can obtain BLAST database formatted Human constant region gene sets from NCBI:
 curl -O https://ftp.ncbi.nih.gov/blast/executables/igblast/release/database/ncbi_human_c_genes.tar
 tar xvf ncbi_human_c_genes.tar
 rm ncbi_human_c_genes.tar
-
-# chech if Igblast is working
-cd ../ncbi-igblast-1.21.0
-export PATH=$PATH:$(pwd)/bin
-export IGDATA=$(pwd)
-igblastn -version
-igblastn -help | head -10
 
 ###############################
 ###### Sanger data format #####
